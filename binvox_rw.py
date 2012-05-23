@@ -23,43 +23,44 @@ class BinvoxModel(object):
 
 def read_binvox(fname):
     """ Read binary binvox format.
+    Doesn't do any checks on input except for the '#binvox' line.
+    Unoptimized.
     """
-    inf = open(fname, 'rb')
-    line = inf.readline().strip()
+    fhandle = open(fname, 'rb')
+    line = fhandle.readline().strip()
     if not line.startswith('#binvox'):
         raise IOError('Not a binvox file')
-    dims = map(int, inf.readline().strip().split(' ')[1:])
-    translate = map(float, inf.readline().strip().split(' ')[1:])
-    scale = map(float, inf.readline().strip().split(' ')[1:])[0]
-    line = inf.readline()
-    data = np.frombuffer(inf.read(), dtype=np.uint8)
-    inf.close()
+    dims = map(int, fhandle.readline().strip().split(' ')[1:])
+    translate = map(float, fhandle.readline().strip().split(' ')[1:])
+    scale = map(float, fhandle.readline().strip().split(' ')[1:])[0]
+    line = fhandle.readline()
+    data = np.frombuffer(fhandle.read(), dtype=np.uint8)
+    fhandle.close()
 
     sz = np.prod(dims)
     voxels = np.empty(sz, dtype=np.bool)
-    index = 0
-    end_index = 0
+    index, end_index = 0, 0
     i = 0
     while i < len(data):
-        value = int(data[i])
-        count = int(data[i+1])
+        value, count = map(int, (data[i], data[i+1]))
         end_index = index+count
         voxels[index:end_index] = value
         index = end_index
         i += 2
     voxels = voxels.reshape(dims)
-
     return BinvoxModel(voxels, dims, translate, scale)
 
 def write_binvox(voxel_model, fname):
     """ Write binary binvox format.
+    Unoptimized.
+    Doesn't check if the model is 'sane'.
     """
-    outf = open(fname, 'wb')
-    outf.write('#binvox 1\n')
-    outf.write('dim '+' '.join(map(str, voxel_model.dims))+'\n')
-    outf.write('translate '+' '.join(map(str, voxel_model.translate))+'\n')
-    outf.write('scale '+str(voxel_model.scale)+'\n')
-    outf.write('data\n')
+    fhandle = open(fname, 'wb')
+    fhandle.write('#binvox 1\n')
+    fhandle.write('dim '+' '.join(map(str, voxel_model.dims))+'\n')
+    fhandle.write('translate '+' '.join(map(str, voxel_model.translate))+'\n')
+    fhandle.write('scale '+str(voxel_model.scale)+'\n')
+    fhandle.write('data\n')
     # we assume they are in the correct order (y, z, x)
     voxels_flat = voxel_model.voxels.flatten()
     # keep a sort of state machine for writing run length encoding
@@ -70,21 +71,20 @@ def write_binvox(voxel_model, fname):
             ctr += 1
             # if ctr hits max, dump
             if ctr==255:
-                outf.write(chr(state))
-                outf.write(chr(ctr))
+                fhandle.write(chr(state))
+                fhandle.write(chr(ctr))
                 ctr = 0
         else:
             # if switch state, dump
-            outf.write(chr(state))
-            outf.write(chr(ctr))
-            #print int(state), ctr
+            fhandle.write(chr(state))
+            fhandle.write(chr(ctr))
             state = c
             ctr = 1
     # flush out remainders
     if ctr > 0:
-        outf.write(chr(state))
-        outf.write(chr(ctr))
-    outf.close()
+        fhandle.write(chr(state))
+        fhandle.write(chr(ctr))
+    fhandle.close()
 
 if __name__ == '__main__':
     vm = read_binvox('chair.binvox')
