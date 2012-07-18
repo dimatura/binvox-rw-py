@@ -50,6 +50,53 @@ def read_binvox(fname):
     voxels = voxels.reshape(dims)
     return BinvoxModel(voxels, dims, translate, scale)
 
+def read_binvox_coords(fname):
+    """ Read binary binvox format.
+    Doesn't do any checks on input except for the '#binvox' line.
+
+    Unoptimized.
+
+    Returns binvox model with voxels in a "coordinate" representation, i.e.  an
+    3 x N array where N is the number of nonzero voxels. Each column
+    corresponds to a nonzero voxel and the 3 rows are the (x, z, y) coordinates
+    of the voxel.  (The odd ordering is due to the way binvox format lays out
+    data).  Note that coordinates refer to the binvox voxels, without any
+    scaling or translation.
+
+    Use this to save memory if your model is very sparse (mostly empty).
+    """
+    fhandle = open(fname, 'rb')
+    line = fhandle.readline().strip()
+    if not line.startswith('#binvox'):
+        raise IOError('Not a binvox file')
+    dims = map(int, fhandle.readline().strip().split(' ')[1:])
+    translate = map(float, fhandle.readline().strip().split(' ')[1:])
+    scale = map(float, fhandle.readline().strip().split(' ')[1:])[0]
+    line = fhandle.readline()
+    data = np.frombuffer(fhandle.read(), dtype=np.uint8)
+    fhandle.close()
+
+    sz = np.prod(dims)
+    nz_voxels = []
+    index, end_index = 0, 0
+    i = 0
+    while i < len(data):
+        value, count = map(int, (data[i], data[i+1]))
+        end_index = index+count
+        if value:
+            nz_voxels.extend(range(index, end_index))
+        index = end_index
+        i += 2
+
+    nz_voxels = np.array(nz_voxels)
+    x = nz_voxels / (dims[0]*dims[1])
+    zwpy = nz_voxels % (dims[0]*dims[1]) # z*w + y
+    z = zwpy / dims[0]
+    y = zwpy % dims[0]
+    voxels = np.vstack((x, z, y))
+
+    return BinvoxModel(voxels, dims, translate, scale)
+
 def write_binvox(voxel_model, fname):
     """ Write binary binvox format.
     Unoptimized.

@@ -1,18 +1,20 @@
 # binvox-rw-py
 
-Python module to read and write `.binvox` files. The voxel data is represented as
-dense 3-dimensional Numpy arrays in Python, a direct if somewhat wasteful
-representation. If your models are large and sparse `scipy.sparse` should be of
-help.
+Small Python module to read and write `.binvox` files. The voxel data is
+represented as dense 3-dimensional Numpy arrays in Python (a direct if somewhat
+wasteful representation for sparse models) or as an array of 3D coordinates
+(more memory-efficient for large and sparse models).
 
 [Binvox](http://www.cs.princeton.edu/~min/binvox/) is a neat little program to
-convert 3D models into binary voxel format. The `.binvox` file format is a simple
-run length encoding format described [here](http://www.cs.princeton.edu/~min/binvox/binvox.html).
+convert 3D models into binary voxel format. The `.binvox` file format is a
+simple run length encoding format described
+[here](http://www.cs.princeton.edu/~min/binvox/binvox.html).
 
 ## Code example
 
-Suppose you have a voxelized chair model, `chair.binvox` (you can try it on the one in the repo).
-Here's how it looks in [`viewvox`](http://www.cs.princeton.edu/~min/viewvox/):
+Suppose you have a voxelized chair model, `chair.binvox` (you can try it on the
+one in the repo).  Here's how it looks in
+[`viewvox`](http://www.cs.princeton.edu/~min/viewvox/):
 
 ![chair](https://github.com/downloads/dimatura/binvox-rw-py/chair.png)
 
@@ -48,6 +50,8 @@ manipulate however you wish. For example, here we dilate it with
 Then we get a fat chair:
 
 ![fat chair](http://github.com/downloads/dimatura/binvox-rw-py/fat_chair.png)
+
+To get the data as an array of coordinates, look at `binvox_rw.read_binvox_coords`. 
 
 --- 
 
