@@ -16,7 +16,7 @@ Suppose you have a voxelized chair model, `chair.binvox` (you can try it on the
 one in the repo).  Here's how it looks in
 [`viewvox`](http://www.cs.princeton.edu/~min/viewvox/):
 
-<img alt="chair" width="600">http://github.com/downloads/dimatura/binvox-rw-py/chair.png</img>
+<img alt="chair" width="600" src="http://github.com/downloads/dimatura/binvox-rw-py/chair.png"></img>
 
 Then
 
