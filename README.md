@@ -16,7 +16,7 @@ Suppose you have a voxelized chair model, `chair.binvox` (you can try it on the
 one in the repo).  Here's how it looks in
 [`viewvox`](http://www.cs.princeton.edu/~min/viewvox/):
 
-![chair](https://github.com/downloads/dimatura/binvox-rw-py/chair.png)
+<img alt="chair" width="600">http://github.com/downloads/dimatura/binvox-rw-py/chair.png</img>
 
 Then
 
@@ -49,7 +49,7 @@ manipulate however you wish. For example, here we dilate it with
 
 Then we get a fat chair:
 
-![fat chair](http://github.com/downloads/dimatura/binvox-rw-py/fat_chair.png)
+<img alt="fat chair" width="600" src="http://github.com/downloads/dimatura/binvox-rw-py/fat_chair.png"></img>
 
 To get the data as an array of coordinates, look at `binvox_rw.read_binvox_coords`. 
 
