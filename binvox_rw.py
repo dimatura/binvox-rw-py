@@ -18,8 +18,31 @@
 """
 Binvox to Numpy and back.
 
+>>> import numpy as np
 >>> import binvox_rw
->>> model = binvox_rw.read_binvox('chair.binvox')
+>>> with open('chair.binvox', 'rb') as f:
+...     m1 = binvox_rw.read(f)
+...
+>>> m1.dims
+[32, 32, 32]
+>>> m1.scale
+41.133000000000003
+>>> m1.translate
+[0.0, 0.0, 0.0]
+>>> with open('chair_out.binvox', 'wb') as f:
+...     m1.write(f)
+...
+>>> with open('chair_out.binvox', 'rb') as f:
+...     m2 = binvox_rw.read(f)
+...
+>>> m1.dims==m2.dims
+True
+>>> m1.scale==m2.scale
+True
+>>> m1.translate==m2.translate
+True
+>>> np.all(m1.data==m2.data)
+True
 
 """
 
@@ -62,7 +85,7 @@ class Voxels(object):
         return Voxels(data, dims, translate, scale)
 
     def write(self, fp):
-        write_binvox(self, fp)
+        write(self, fp)
 
 def read_header(fp):
     """ Read binvox header. Mostly meant for internal use.
@@ -76,8 +99,8 @@ def read_header(fp):
     line = fp.readline()
     return dims, translate, scale
 
-def load(fp):
-    """ Load binary binvox format.
+def read(fp):
+    """ Read binary binvox format as array.
 
     Returns the model with accompanying metadata.
 
@@ -89,14 +112,14 @@ def load(fp):
     Doesn't do any checks on input except for the '#binvox' line.
     """
     dims, translate, scale = read_header(fp)
-    data = np.frombuffer(fp.read(), dtype=np.uint8)
+    raw_data = np.frombuffer(fp.read(), dtype=np.uint8)
 
     sz = np.prod(dims)
     data = np.empty(sz, dtype=np.bool)
     index, end_index = 0, 0
     i = 0
-    while i < len(data):
-        value, count = map(int, (data[i], data[i+1]))
+    while i < len(raw_data):
+        value, count = map(int, (raw_data[i], raw_data[i+1]))
         end_index = index+count
         data[index:end_index] = value
         index = end_index
@@ -104,8 +127,8 @@ def load(fp):
     data = data.reshape(dims)
     return Voxels(data, dims, translate, scale)
 
-def load_coords(fp):
-    """ Read binary binvox format.
+def read_coords(fp):
+    """ Read binary binvox format as coordinates.
 
     Returns binvox model with voxels in a "coordinate" representation, i.e.  an
     3 x N array where N is the number of nonzero voxels. Each column
@@ -119,14 +142,14 @@ def load_coords(fp):
     Doesn't do any checks on input except for the '#binvox' line.
     """
     dims, translate, scale = read_header(fp)
-    data = np.frombuffer(fhandle.read(), dtype=np.uint8)
+    raw_data = np.frombuffer(fp.read(), dtype=np.uint8)
 
     sz = np.prod(dims)
     nz_voxels = []
     index, end_index = 0, 0
     i = 0
-    while i < len(data):
-        value, count = map(int, (data[i], data[i+1]))
+    while i < len(raw_data):
+        value, count = map(int, (raw_data[i], raw_data[i+1]))
         end_index = index+count
         if value:
             nz_voxels.extend(range(index, end_index))
@@ -142,19 +165,18 @@ def load_coords(fp):
 
     return Voxels(data, dims, translate, scale)
 
-def write_binvox(voxel_model, fname):
+def write(voxel_model, fp):
     """ Write binary binvox format.
     Unoptimized.
     Doesn't check if the model is 'sane'.
     """
-    fhandle = open(fname, 'wb')
-    fhandle.write('#binvox 1\n')
-    fhandle.write('dim '+' '.join(map(str, voxel_model.dims))+'\n')
-    fhandle.write('translate '+' '.join(map(str, voxel_model.translate))+'\n')
-    fhandle.write('scale '+str(voxel_model.scale)+'\n')
-    fhandle.write('data\n')
+    fp.write('#binvox 1\n')
+    fp.write('dim '+' '.join(map(str, voxel_model.dims))+'\n')
+    fp.write('translate '+' '.join(map(str, voxel_model.translate))+'\n')
+    fp.write('scale '+str(voxel_model.scale)+'\n')
+    fp.write('data\n')
     # we assume they are in the correct order (y, z, x)
-    voxels_flat = voxel_model.voxels.flatten()
+    voxels_flat = voxel_model.data.flatten()
     # keep a sort of state machine for writing run length encoding
     state = voxels_flat[0]
     ctr = 0
@@ -163,20 +185,19 @@ def write_binvox(voxel_model, fname):
             ctr += 1
             # if ctr hits max, dump
             if ctr==255:
-                fhandle.write(chr(state))
-                fhandle.write(chr(ctr))
+                fp.write(chr(state))
+                fp.write(chr(ctr))
                 ctr = 0
         else:
             # if switch state, dump
-            fhandle.write(chr(state))
-            fhandle.write(chr(ctr))
+            fp.write(chr(state))
+            fp.write(chr(ctr))
             state = c
             ctr = 1
     # flush out remainders
     if ctr > 0:
-        fhandle.write(chr(state))
-        fhandle.write(chr(ctr))
-    fhandle.close()
+        fp.write(chr(state))
+        fp.write(chr(ctr))
 
 def transform_voxels_coords(ijk, T, floor=False, clip_dim=None):
     """ Transform voxels with matrix T.
@@ -203,8 +224,11 @@ def transform_voxels_coords(ijk, T, floor=False, clip_dim=None):
 
 def overlap(vox0, vox1):
     """ Volume of intersection divided by volume of union.
+    This requires dense array representation.
+
     A measure of similarity between two models, with 0 being completely
     disjoint and 1 being equal.
+
     This is equivalent to treating the voxels as members of a set and computing
     the Jaccard similarity between the sets corresponding to each model.
     """
@@ -213,5 +237,3 @@ def overlap(vox0, vox1):
 if __name__ == '__main__':
     import doctest
     doctest.testmod()
-    #vm = read_binvox('chair.binvox')
-    #vm.write('chair_out.binvox')
