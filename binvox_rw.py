@@ -15,63 +15,97 @@
 #  along with binvox-rw-py. If not, see <http://www.gnu.org/licenses/>.
 #
 
-import numpy as np
+"""
+Binvox to Numpy and back.
 
-class BinvoxModel(object):
+>>> import binvox_rw
+>>> model = binvox_rw.read_binvox('chair.binvox')
+
+"""
+
+import numpy as np
+import pdb
+
+class Voxels(object):
     """ Holds a binvox model.
-    voxels is a 3-dimensional numpy array.
-    dims, translate and scale are the model metadata (see binvox docs).
+    data is either a three-dimensional numpy boolean array (dense representation)
+    or a two-dimensional numpy float array (coordinate representation).
+
+    dims, translate and scale are the model metadata.
+
+    dims are the voxel dimensions, e.g. [32, 32, 32] for a 32x32x32 model.
+
+    scale and translate relate the voxels to the original model coordinates.
+
+    To translate voxel coordinates i, j, k to original coordinates x, y, z:
+
+    x_n = (i+.5)/dims[0]
+    y_n = (j+.5)/dims[1]
+    z_n = (k+.5)/dims[2]
+    x = scale*x_n + translate[0]
+    y = scale*y_n + translate[1]
+    z = scale*z_n + translate[2]
+
     """
-    def __init__(self, voxels, dims, translate, scale):
-        self.voxels = voxels
+
+    def __init__(self, data, dims, translate, scale):
+        self.data = data
         self.dims = dims
         self.translate = translate
         self.scale = scale
 
     def clone(self):
-        voxels = self.voxels.copy()
+        data = self.data.copy()
         dims = self.dims[:]
         translate = self.translate[:]
         scale = self.scale
-        return BinvoxModel(voxels, dims, translate, scale)
+        return Voxels(data, dims, translate, scale)
 
-    def write(self, fname):
-        write_binvox(self, fname)
+    def write(self, fp):
+        write_binvox(self, fp)
 
-def read_binvox(fname):
-    """ Read binary binvox format.
-    Doesn't do any checks on input except for the '#binvox' line.
-    Unoptimized.
+def read_header(fp):
+    """ Read binvox header. Mostly meant for internal use.
     """
-    fhandle = open(fname, 'rb')
-    line = fhandle.readline().strip()
+    line = fp.readline().strip()
     if not line.startswith('#binvox'):
         raise IOError('Not a binvox file')
-    dims = map(int, fhandle.readline().strip().split(' ')[1:])
-    translate = map(float, fhandle.readline().strip().split(' ')[1:])
-    scale = map(float, fhandle.readline().strip().split(' ')[1:])[0]
-    line = fhandle.readline()
-    data = np.frombuffer(fhandle.read(), dtype=np.uint8)
-    fhandle.close()
+    dims = map(int, fp.readline().strip().split(' ')[1:])
+    translate = map(float, fp.readline().strip().split(' ')[1:])
+    scale = map(float, fp.readline().strip().split(' ')[1:])[0]
+    line = fp.readline()
+    return dims, translate, scale
+
+def load(fp):
+    """ Load binary binvox format.
+
+    Returns the model with accompanying metadata.
+
+    Voxels are stored in a three-dimensional numpy array, which is simple and
+    direct, but may use a lot of memory for large models. (Storage requirements
+    are 8*(d^3) bytes, where d is the dimensions of the binvox model. Numpy
+    boolean arrays use a byte per element).
+
+    Doesn't do any checks on input except for the '#binvox' line.
+    """
+    dims, translate, scale = read_header(fp)
+    data = np.frombuffer(fp.read(), dtype=np.uint8)
 
     sz = np.prod(dims)
-    voxels = np.empty(sz, dtype=np.bool)
+    data = np.empty(sz, dtype=np.bool)
     index, end_index = 0, 0
     i = 0
     while i < len(data):
         value, count = map(int, (data[i], data[i+1]))
         end_index = index+count
-        voxels[index:end_index] = value
+        data[index:end_index] = value
         index = end_index
         i += 2
-    voxels = voxels.reshape(dims)
-    return BinvoxModel(voxels, dims, translate, scale)
+    data = data.reshape(dims)
+    return Voxels(data, dims, translate, scale)
 
-def read_binvox_coords(fname):
+def load_coords(fp):
     """ Read binary binvox format.
-    Doesn't do any checks on input except for the '#binvox' line.
-
-    Unoptimized.
 
     Returns binvox model with voxels in a "coordinate" representation, i.e.  an
     3 x N array where N is the number of nonzero voxels. Each column
@@ -81,17 +115,11 @@ def read_binvox_coords(fname):
     scaling or translation.
 
     Use this to save memory if your model is very sparse (mostly empty).
+
+    Doesn't do any checks on input except for the '#binvox' line.
     """
-    fhandle = open(fname, 'rb')
-    line = fhandle.readline().strip()
-    if not line.startswith('#binvox'):
-        raise IOError('Not a binvox file')
-    dims = map(int, fhandle.readline().strip().split(' ')[1:])
-    translate = map(float, fhandle.readline().strip().split(' ')[1:])
-    scale = map(float, fhandle.readline().strip().split(' ')[1:])[0]
-    line = fhandle.readline()
+    dims, translate, scale = read_header(fp)
     data = np.frombuffer(fhandle.read(), dtype=np.uint8)
-    fhandle.close()
 
     sz = np.prod(dims)
     nz_voxels = []
@@ -110,9 +138,9 @@ def read_binvox_coords(fname):
     zwpy = nz_voxels % (dims[0]*dims[1]) # z*w + y
     z = zwpy / dims[0]
     y = zwpy % dims[0]
-    voxels = np.vstack((x, z, y))
+    data = np.vstack((x, z, y))
 
-    return BinvoxModel(voxels, dims, translate, scale)
+    return Voxels(data, dims, translate, scale)
 
 def write_binvox(voxel_model, fname):
     """ Write binary binvox format.
@@ -150,7 +178,40 @@ def write_binvox(voxel_model, fname):
         fhandle.write(chr(ctr))
     fhandle.close()
 
-if __name__ == '__main__':
-    vm = read_binvox('chair.binvox')
-    vm.write('chair_out.binvox')
+def transform_voxels_coords(ijk, T, floor=False, clip_dim=None):
+    """ Transform voxels with matrix T.
+    ijk is a 3xN matrix, with each column being a voxel. (Or any arbitrary point xyz).
+    T is a 4x4 matrix representing a transform such as a scaling, rotation, etc.
 
+    floor: if true, output voxels are made integers with the floor() function.
+    clip_dim: if set to a positive integer, all voxels for which one coordinate
+    is negative or larger or equal than clip_dim will be discarded. This is
+    useful when all voxels should be contained within a certain volume.
+    """
+    # no reordering of coords
+    xyzw_a = np.vstack((ijk, np.ones((1, ijk.shape[1]))))
+    xyzw_b = np.dot(T, xyzw_a)
+    xyzw_b /= xyzw_b[3]
+    xyz_b = xyzw_b[:3]
+    del xyzw_b
+    if floor:
+        xyz_b = np.floor(xyz_b).astype(np.int)
+    if clip_dim is not None and clip_dim > 0:
+        valid_ix = ~np.any((xyz_b < 0) | (xyz_b >= clip_dim), 0)
+        xyz_b = xyz_b[:,valid_ix]
+    return xyz_b
+
+def overlap(vox0, vox1):
+    """ Volume of intersection divided by volume of union.
+    A measure of similarity between two models, with 0 being completely
+    disjoint and 1 being equal.
+    This is equivalent to treating the voxels as members of a set and computing
+    the Jaccard similarity between the sets corresponding to each model.
+    """
+    return float(np.sum(vox0 & vox1))/np.sum(vox0 | vox1)
+
+if __name__ == '__main__':
+    import doctest
+    doctest.testmod()
+    #vm = read_binvox('chair.binvox')
+    #vm.write('chair_out.binvox')
