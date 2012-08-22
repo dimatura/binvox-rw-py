@@ -199,12 +199,12 @@ def write(voxel_model, fp):
         fp.write(chr(state))
         fp.write(chr(ctr))
 
-def transform_voxels_coords(ijk, T, floor=False, clip_dim=None):
+def transform_voxels_coords(ijk, T, trunc=False, clip_dim=None):
     """ Transform voxels with matrix T.
     ijk is a 3xN matrix, with each column being a voxel. (Or any arbitrary point xyz).
     T is a 4x4 matrix representing a transform such as a scaling, rotation, etc.
 
-    floor: if true, output voxels are made integers with the floor() function.
+    trunc: if true, output voxels are truncated to integers.
     clip_dim: if set to a positive integer, all voxels for which one coordinate
     is negative or larger or equal than clip_dim will be discarded. This is
     useful when all voxels should be contained within a certain volume.
@@ -215,12 +215,35 @@ def transform_voxels_coords(ijk, T, floor=False, clip_dim=None):
     xyzw_b /= xyzw_b[3]
     xyz_b = xyzw_b[:3]
     del xyzw_b
-    if floor:
-        xyz_b = np.floor(xyz_b).astype(np.int)
+    if trunc:
+        xyz_b = xyz_b.astype(np.int)
     if clip_dim is not None and clip_dim > 0:
         valid_ix = ~np.any((xyz_b < 0) | (xyz_b >= clip_dim), 0)
         xyz_b = xyz_b[:,valid_ix]
     return xyz_b
+
+def dense_to_sparse(voxel_data, dtype=np.int):
+    """ From dense representation to sparse (coordinate) representation.
+    No coordinate reordering.
+    """
+    if voxel_data.ndim!=3:
+        raise ValueError('voxel_data is wrong shape; should be 3D array.')
+    return np.asarray(np.nonzero(voxel_data), dtype)
+
+def sparse_to_dense(voxel_data, dims, dtype=np.bool):
+    if voxel_data.ndim!=2 or voxel_data.shape[0]!=3:
+        raise ValueError('voxel_data is wrong shape; should be 3xN array.')
+    if np.isscalar(dims):
+        dims = [dims]*3
+    dims = np.atleast_2d(dims).T
+    # truncate to integers
+    xyz = voxel_data.astype(np.int)
+    # discard voxels that fall outside dims
+    valid_ix = ~np.any((xyz < 0) | (xyz >= dims), 0)
+    xyz = xyz[:,valid_ix]
+    out = np.zeros(dims.flatten(), dtype=dtype)
+    out[tuple(xyz)] = True
+    return out
 
 def overlap(vox0, vox1):
     """ Volume of intersection divided by volume of union.
