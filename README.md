@@ -21,8 +21,16 @@ one in the repo).  Here's how it looks in
 Then
 
     >>> import binvox_rw
-    >>> model = binvox_rw.read_binvox('chair.binvox')
-    >>> model.voxels
+    >>> with open('chair.binvox', 'rb') as f:
+    ...     model = binvox_rw.read(f)
+    ...
+    >>> model.dims
+    [32, 32, 32]
+    >>> model.scale
+    41.133000000000003
+    >>> model.translate
+    [0.0, 0.0, 0.0]
+    >>> model.data
     array([[[ True, False, False, ..., False, False, False],
             [ True, False, False, ..., False, False, False],
             [ True, False, False, ..., False, False, False],
@@ -34,24 +42,28 @@ Then
             [False, False, False, ..., False, False, False],
             [False, False, False, ..., False, False, False],
             [False, False, False, ..., False, False, False]]], dtype=bool)
-    >>> model.scale
-    41.133000000000003
-    >>> model.dims
-    [32, 32, 32]
 
-You get the idea. `model.voxels` has the boolean 3D array. You can then
+You get the idea. `model.data` has the boolean 3D array. You can then
 manipulate however you wish. For example, here we dilate it with
 `scipy.ndimage` and write the dilated version to disk:
 
     >>> import scipy.ndimage 
-    >>> scipy.ndimage.binary_dilation(model.voxels.copy(), output=model.voxels)
+    >>> scipy.ndimage.binary_dilation(model.data.copy(), output=model.data)
     >>> model.write('dilated.binvox')
 
 Then we get a fat chair:
 
 <img alt="fat chair" width="600" src="http://github.com/downloads/dimatura/binvox-rw-py/fat_chair.png"></img>
 
-To get the data as an array of coordinates, look at `binvox_rw.read_binvox_coords`. 
+## Sparse representation
+
+To get the data as an array of coordinates, look at `binvox_rw.read_coords`.
+
+## Installation
+
+This is a really simple, 200-line module. You should just stick into whatever
+project you're using.  Or copy it to `/usr/share/lib/pythonX.Y/site-packages`
+if you really want a system-wide installation.
 
 --- 
 
