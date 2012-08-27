@@ -61,6 +61,7 @@ True
 True
 """
 
+import operator
 import numpy as np
 import pdb
 
@@ -130,17 +131,8 @@ def read(fp, fix_coords=True):
     """
     dims, translate, scale = read_header(fp)
     raw_data = np.frombuffer(fp.read(), dtype=np.uint8)
-
-    sz = np.prod(dims)
-    data = np.empty(sz, dtype=np.bool)
-    index, end_index = 0, 0
-    i = 0
-    while i < len(raw_data):
-        value, count = map(int, (raw_data[i], raw_data[i+1]))
-        end_index = index+count
-        data[index:end_index] = value
-        index = end_index
-        i += 2
+    values, counts = raw_data[::2], raw_data[1::2]
+    data = np.repeat(values, counts).astype(np.bool)
     data = data.reshape(dims)
     if fix_coords:
         # xzy to xyz TODO the right thing
@@ -148,8 +140,7 @@ def read(fp, fix_coords=True):
         axis_order = 'xyz'
     else:
         axis_order = 'xzy'
-
-    return Voxels(np.ascontiguousarray(data), dims, translate, scale, axis_order)
+    return Voxels(data, dims, translate, scale, axis_order)
 
 def read_coords(fp, fix_coords=True):
     """ Read binary binvox format as coordinates.
@@ -168,19 +159,22 @@ def read_coords(fp, fix_coords=True):
     dims, translate, scale = read_header(fp)
     raw_data = np.frombuffer(fp.read(), dtype=np.uint8)
 
-    sz = np.prod(dims)
-    nz_voxels = []
-    index, end_index = 0, 0
-    i = 0
-    while i < len(raw_data):
-        value, count = map(int, (raw_data[i], raw_data[i+1]))
-        end_index = index+count
-        if value:
-            nz_voxels.extend(range(index, end_index))
-        index = end_index
-        i += 2
+    values, counts = raw_data[::2], raw_data[1::2]
 
+    sz = np.prod(dims)
+    index, end_index = 0, 0
+    end_indices = np.cumsum(counts)
+    indices = np.concatenate(([0], end_indices[:-1])).astype(end_indices.dtype)
+
+    values = values.astype(np.bool)
+    indices = indices[values]
+    end_indices = end_indices[values]
+
+    nz_voxels = []
+    for index, end_index in zip(indices, end_indices):
+        nz_voxels.extend(range(index, end_index))
     nz_voxels = np.array(nz_voxels)
+
     x = nz_voxels / (dims[0]*dims[1])
     zwpy = nz_voxels % (dims[0]*dims[1]) # z*w + y
     z = zwpy / dims[0]
@@ -192,8 +186,8 @@ def read_coords(fp, fix_coords=True):
         data = np.vstack((x, z, y))
         axis_order = 'xzy'
 
-    #return Voxels(data, dims, translate, scale, axis_order)
-    return Voxels(np.ascontiguousarray(data), dims, translate, scale, axis_order)
+    return Voxels(data, dims, translate, scale, axis_order)
+
 
 def write(voxel_model, fp):
     """ Write binary binvox format.
@@ -292,6 +286,16 @@ def overlap(vox0, vox1):
     the Jaccard similarity between the sets corresponding to each model.
     """
     return float(np.sum(vox0 & vox1))/np.sum(vox0 | vox1)
+
+def test_snippet():
+    with open('chair.binvox') as f:
+        m = read(f)
+        print m.data.sum()
+
+def test_snippet_c():
+    with open('chair.binvox') as f:
+        m = read_coords(f)
+        print m.data.sum()
 
 if __name__ == '__main__':
     import doctest
