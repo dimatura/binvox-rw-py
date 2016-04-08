@@ -106,11 +106,11 @@ def read_header(fp):
     """ Read binvox header. Mostly meant for internal use.
     """
     line = fp.readline().strip()
-    if not line.startswith('#binvox'):
+    if not line.startswith(b'#binvox'):
         raise IOError('Not a binvox file')
-    dims = map(int, fp.readline().strip().split(' ')[1:])
-    translate = map(float, fp.readline().strip().split(' ')[1:])
-    scale = map(float, fp.readline().strip().split(' ')[1:])[0]
+    dims = list(map(int, fp.readline().strip().split(b' ')[1:]))
+    translate = list(map(float, fp.readline().strip().split(b' ')[1:]))
+    scale = list(map(float, fp.readline().strip().split(b' ')[1:]))[0]
     line = fp.readline()
     return dims, translate, scale
 
